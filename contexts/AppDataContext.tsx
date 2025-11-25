@@ -2,12 +2,15 @@ import React, {
   createContext,
   useContext,
   useState,
+  useEffect,
   ReactNode,
 } from "react";
+import api from "../services/api";
 
+// --- TIPAGENS ---
 export type Categoria = "Entrada" | "Prato Principal" | "Sobremesa" | "Bebida";
 export type AreaPreparo = "Cozinha" | "Copa";
-export type StatusProducao = "Pendente" | "Em Preparo" | "Pronto";
+export type StatusProducao = "Pendente" | "Em Preparo" | "Pronto" | "Entregue";
 export type StatusComanda = "Aberta" | "Fechada";
 
 export interface MenuItem {
@@ -25,6 +28,7 @@ export interface ComandaItem {
   quantidade: number;
   status: StatusProducao;
   areaPreparo: AreaPreparo;
+  nomeItem?: string;
 }
 
 export interface Comanda {
@@ -33,166 +37,165 @@ export interface Comanda {
   horaAbertura: string;
   status: StatusComanda;
   itens: ComandaItem[];
+  total?: number;
 }
 
 interface AppDataContextValue {
   menuItems: MenuItem[];
   comandas: Comanda[];
+  comandasFechadas: Comanda[]; // NOVA LISTA PARA RELATÓRIOS
+  isLoading: boolean;
 
-  addMenuItem(data: Omit<MenuItem, "id">): void;
-  deleteMenuItem(id: string): void;
-
-  abrirComanda(mesa: string): void;
-  adicionarItemNaComanda(
-    comandaId: string,
-    menuItemId: string,
-    quantidade: number
-  ): void;
-  atualizarStatusItem(
-    comandaId: string,
-    itemId: string,
-    status: StatusProducao
-  ): void;
-  fecharComanda(comandaId: string): void;
+  refreshData(): Promise<void>;
+  addMenuItem(data: Omit<MenuItem, "id">): Promise<void>;
+  deleteMenuItem(id: string): Promise<void>;
+  abrirComanda(mesa: string): Promise<void>;
+  adicionarItemNaComanda(comandaId: string, menuItemId: string, quantidade: number): Promise<void>;
+  atualizarStatusItem(comandaId: string, itemId: string, status: StatusProducao): Promise<void>;
+  fecharComanda(comandaId: string): Promise<void>;
 }
 
-const AppDataContext = createContext<AppDataContextValue | undefined>(
-  undefined
-);
+const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
 
-const INITIAL_MENU: MenuItem[] = [
-  {
-    id: "1",
-    nome: "Salada Caesar",
-    descricao: "Alface romana, croutons, parmesão e molho caesar",
-    preco: 28.9,
-    categoria: "Entrada",
-    areaPreparo: "Copa",
-  },
-  {
-    id: "2",
-    nome: "Filé Mignon ao Molho Madeira",
-    descricao: "Filé mignon grelhado com molho madeira e batatas",
-    preco: 89.9,
-    categoria: "Prato Principal",
-    areaPreparo: "Cozinha",
-  },
-  {
-    id: "3",
-    nome: "Petit Gateau",
-    descricao: "Bolinho de chocolate com sorvete de baunilha",
-    preco: 24.9,
-    categoria: "Sobremesa",
-    areaPreparo: "Cozinha",
-  },
-  {
-    id: "4",
-    nome: "Suco Natural de Laranja",
-    descricao: "Suco natural de laranja 500ml",
-    preco: 12.9,
-    categoria: "Bebida",
-    areaPreparo: "Copa",
-  },
-];
-
-export const AppDataProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(INITIAL_MENU);
+export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [comandas, setComandas] = useState<Comanda[]>([]);
+  const [comandasFechadas, setComandasFechadas] = useState<Comanda[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  function addMenuItem(data: Omit<MenuItem, "id">) {
-    const novo: MenuItem = {
-      ...data,
-      id: Date.now().toString(),
-    };
-    setMenuItems((prev) => [...prev, novo]);
-  }
+  useEffect(() => {
+    refreshData();
+  }, []);
 
-  function deleteMenuItem(id: string) {
-    setMenuItems((prev) => prev.filter((m) => m.id !== id));
-  }
+  // Função auxiliar para formatar itens vindos da API
+  const formatarItens = (itensAPI: any[]): ComandaItem[] => {
+    return (itensAPI || []).map((it: any) => ({
+      id: it.id.toString(),
+      menuItemId: it.itemCardapioId ? it.itemCardapioId.toString() : "",
+      quantidade: it.quantidade,
+      status: mapStatusBackendToFrontend(it.status),
+      areaPreparo: it.item?.tipo === 'BEBIDA' ? 'Copa' : 'Cozinha',
+      nomeItem: it.item?.nome
+    }));
+  };
 
-  function abrirComanda(mesa: string) {
-    const agora = new Date();
-    const hora = `${agora.getHours().toString().padStart(2, "0")}:${agora
-      .getMinutes()
-      .toString()
-      .padStart(2, "0")}`;
-
-    const nova: Comanda = {
-      id: Date.now().toString(),
-      mesa,
-      horaAbertura: hora,
-      status: "Aberta",
-      itens: [],
-    };
-
-    setComandas((prev) => [...prev, nova]);
-  }
-
-  function adicionarItemNaComanda(
-    comandaId: string,
-    menuItemId: string,
-    quantidade: number
-  ) {
-    setComandas((prev) =>
-      prev.map((c) => {
-        if (c.id !== comandaId) return c;
-
-        const menuItem = menuItems.find((m) => m.id === menuItemId);
-        if (!menuItem) return c;
-
-        const novoItem: ComandaItem = {
-          id: Date.now().toString(),
-          menuItemId,
-          quantidade,
-          status: "Pendente",
-          areaPreparo: menuItem.areaPreparo,
-        };
-
-        return { ...c, itens: [...c.itens, novoItem] };
-      })
-    );
-  }
-
-  function atualizarStatusItem(
-    comandaId: string,
-    itemId: string,
-    status: StatusProducao
-  ) {
-    setComandas((prev) =>
-      prev.map((c) => {
-        if (c.id !== comandaId) return c;
+  async function refreshData() {
+    setIsLoading(true);
+    try {
+      // 1. CARREGAR CARDÁPIO
+      const responseMenu = await api.get("/cardapio");
+      const menuFormatado: MenuItem[] = responseMenu.data.map((item: any) => {
+        let cat: Categoria = "Prato Principal";
+        let area: AreaPreparo = "Cozinha";
+        if (item.tipo === "BEBIDA") { cat = "Bebida"; area = "Copa"; }
         return {
-          ...c,
-          itens: c.itens.map((it) =>
-            it.id === itemId ? { ...it, status } : it
-          ),
+          id: item.id.toString(),
+          nome: item.nome,
+          descricao: item.descricao,
+          preco: Number(item.preco),
+          categoria: cat,
+          areaPreparo: area,
         };
-      })
-    );
+      });
+      setMenuItems(menuFormatado);
+
+      // 2. CARREGAR COMANDAS ABERTAS (Detalhado para KDS)
+      const responseAbertas = await api.get("/comandas/abertas");
+      const abertasDetalhadas = await Promise.all(
+        responseAbertas.data.map(async (c: any) => {
+          try {
+            const detalhe = await api.get(/comandas/${c.id});
+            return {
+              id: c.id.toString(),
+              mesa: c.numeroMesa.toString(),
+              horaAbertura: new Date(c.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+              status: "Aberta" as StatusComanda,
+              itens: formatarItens(detalhe.data.itens),
+              total: Number(detalhe.data.valorTotal || 0)
+            };
+          } catch { return null; }
+        })
+      );
+      setComandas(abertasDetalhadas.filter(c => c !== null) as Comanda[]);
+
+      // 3. CARREGAR COMANDAS FECHADAS (Para o Relatório de Vendas)
+      // Importante: Você precisa ter certeza que seu backend tem uma rota para listar todas ou fechadas.
+      // Se não tiver, o axios vai dar erro 404. Vamos tentar usar a rota genérica se existir, ou filtrar.
+      // Assumindo que você criou a rota de relatorioController ou uma rota GET /comandas geral.
+      // Como plano B, vamos deixar vazio se der erro para não travar o app.
+      try {
+         // Ajuste isso para a rota que retorna comandas fechadas no seu back
+         // Se não tiver rota específica, pule essa parte.
+         // Estou assumindo que você pode adicionar: routes.get('/comandas', comandaController.indexAll);
+      } catch (e) { console.log("Erro ao buscar vendas"); }
+
+    } catch (error) {
+      console.error("Erro geral:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function fecharComanda(comandaId: string) {
-    setComandas((prev) =>
-      prev.map((c) =>
-        c.id === comandaId ? { ...c, status: "Fechada" } : c
-      )
-    );
+  function mapStatusBackendToFrontend(statusUpper: string): StatusProducao {
+    const map: Record<string, StatusProducao> = {
+      'PENDENTE': 'Pendente', 'EM_PREPARO': 'Em Preparo', 'PRONTO': 'Pronto', 'ENTREGUE': 'Entregue'
+    };
+    return map[statusUpper] || 'Pendente';
+  }
+
+  function mapStatusFrontendToBackend(statusView: StatusProducao): string {
+    const map: Record<string, string> = {
+      'Pendente': 'PENDENTE', 'Em Preparo': 'EM_PREPARO', 'Pronto': 'PRONTO', 'Entregue': 'ENTREGUE'
+    };
+    return map[statusView] || 'PENDENTE';
+  }
+
+  // AÇÕES
+  async function addMenuItem(data: Omit<MenuItem, "id">) {
+    try {
+      await api.post("/cardapio", {
+        nome: data.nome, descricao: data.descricao, preco: data.preco,
+        tipo: data.categoria === "Bebida" ? "BEBIDA" : "PRATO"
+      });
+      refreshData();
+    } catch (e) { alert("Erro ao criar item"); }
+  }
+
+  async function deleteMenuItem(id: string) {
+    await api.delete(/cardapio/${id});
+    refreshData();
+  }
+
+  async function abrirComanda(mesa: string) {
+    try {
+      await api.post("/comandas", { numeroMesa: parseInt(mesa) });
+      refreshData();
+    } catch (e: any) { alert(e.response?.data?.error || "Erro"); }
+  }
+
+  async function adicionarItemNaComanda(comandaId: string, menuItemId: string, quantidade: number) {
+    await api.post(/comandas/${comandaId}/adicionar, {
+      itemCardapioId: parseInt(menuItemId), quantidade, observacao: ""
+    });
+    refreshData();
+  }
+
+  async function atualizarStatusItem(comandaId: string, itemId: string, status: StatusProducao) {
+    await api.put(/pedidos/${itemId}/status, { status: mapStatusFrontendToBackend(status) });
+    refreshData();
+  }
+
+  async function fecharComanda(comandaId: string) {
+    await api.put(/comandas/${comandaId}/fechar);
+    refreshData();
   }
 
   return (
     <AppDataContext.Provider
       value={{
-        menuItems,
-        comandas,
-        addMenuItem,
-        deleteMenuItem,
-        abrirComanda,
-        adicionarItemNaComanda,
-        atualizarStatusItem,
-        fecharComanda,
+        menuItems, comandas, comandasFechadas, isLoading,
+        refreshData, addMenuItem, deleteMenuItem, abrirComanda,
+        adicionarItemNaComanda, atualizarStatusItem, fecharComanda
       }}
     >
       {children}
@@ -202,8 +205,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({
 
 export const useAppData = () => {
   const ctx = useContext(AppDataContext);
-  if (!ctx) {
-    throw new Error("useAppData deve ser usado dentro de AppDataProvider");
-  }
+  if (!ctx) throw new Error("useAppData deve ser usado dentro de AppDataProvider");
   return ctx;
 };
