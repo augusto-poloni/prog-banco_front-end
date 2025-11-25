@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import api from "../services/api";
 
-// --- TIPAGENS ---
+
 export type Categoria = "Entrada" | "Prato Principal" | "Sobremesa" | "Bebida";
 export type AreaPreparo = "Cozinha" | "Copa";
 export type StatusProducao = "Pendente" | "Em Preparo" | "Pronto" | "Entregue";
@@ -43,7 +43,7 @@ export interface Comanda {
 interface AppDataContextValue {
   menuItems: MenuItem[];
   comandas: Comanda[];
-  comandasFechadas: Comanda[]; // NOVA LISTA PARA RELATÓRIOS
+  comandasFechadas: Comanda[];
   isLoading: boolean;
 
   refreshData(): Promise<void>;
@@ -67,7 +67,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
     refreshData();
   }, []);
 
-  // Função auxiliar para formatar itens vindos da API
   const formatarItens = (itensAPI: any[]): ComandaItem[] => {
     return (itensAPI || []).map((it: any) => ({
       id: it.id.toString(),
@@ -82,7 +81,7 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
   async function refreshData() {
     setIsLoading(true);
     try {
-      // 1. CARREGAR CARDÁPIO
+
       const responseMenu = await api.get("/cardapio");
       const menuFormatado: MenuItem[] = responseMenu.data.map((item: any) => {
         let cat: Categoria = "Prato Principal";
@@ -99,7 +98,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
       });
       setMenuItems(menuFormatado);
 
-      // 2. CARREGAR COMANDAS ABERTAS (Detalhado para KDS)
       const responseAbertas = await api.get("/comandas/abertas");
       const abertasDetalhadas = await Promise.all(
         responseAbertas.data.map(async (c: any) => {
@@ -118,15 +116,8 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
       );
       setComandas(abertasDetalhadas.filter(c => c !== null) as Comanda[]);
 
-      // 3. CARREGAR COMANDAS FECHADAS (Para o Relatório de Vendas)
-      // Importante: Você precisa ter certeza que seu backend tem uma rota para listar todas ou fechadas.
-      // Se não tiver, o axios vai dar erro 404. Vamos tentar usar a rota genérica se existir, ou filtrar.
-      // Assumindo que você criou a rota de relatorioController ou uma rota GET /comandas geral.
-      // Como plano B, vamos deixar vazio se der erro para não travar o app.
       try {
-         // Ajuste isso para a rota que retorna comandas fechadas no seu back
-         // Se não tiver rota específica, pule essa parte.
-         // Estou assumindo que você pode adicionar: routes.get('/comandas', comandaController.indexAll);
+
       } catch (e) { console.log("Erro ao buscar vendas"); }
 
     } catch (error) {
@@ -150,7 +141,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
     return map[statusView] || 'PENDENTE';
   }
 
-  // AÇÕES
   async function addMenuItem(data: Omit<MenuItem, "id">) {
     try {
       await api.post("/cardapio", {
@@ -208,3 +198,4 @@ export const useAppData = () => {
   if (!ctx) throw new Error("useAppData deve ser usado dentro de AppDataProvider");
   return ctx;
 };
+
