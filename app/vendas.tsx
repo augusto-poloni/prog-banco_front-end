@@ -1,3 +1,4 @@
+// app/vendas.tsx
 import React from "react";
 import { View, Text } from "react-native";
 import { BarChart, PieChart } from "react-native-chart-kit";
@@ -15,9 +16,11 @@ const colorByCategoria: Record<Categoria, string> = {
 };
 
 const VendasPage: React.FC = () => {
-  const { comandas, menuItems } = useAppData();
+  // ✅ usando comandasFechadas vindo do contexto
+  const { comandasFechadas: comandas, menuItems } = useAppData();
 
-  const fechadas = comandas.filter((c) => c.status === "Fechada");
+  // já são só as fechadas
+  const fechadas = comandas;
 
   let totalVendas = 0;
   let itensVendidos = 0;
@@ -40,12 +43,15 @@ const VendasPage: React.FC = () => {
       totalVendas += valor;
       itensVendidos += it.quantidade;
 
+      // por hora
       vendasPorHora[horaLabel] =
         (vendasPorHora[horaLabel] || 0) + valor;
 
+      // por categoria
       vendasPorCategoria[menu.categoria] =
         (vendasPorCategoria[menu.categoria] || 0) + valor;
 
+      // itens mais vendidos
       if (!itensMap[menu.id]) {
         itensMap[menu.id] = {
           nome: menu.nome,
@@ -61,10 +67,10 @@ const VendasPage: React.FC = () => {
   const pedidos = fechadas.length;
   const ticketMedio = pedidos > 0 ? totalVendas / pedidos : 0;
 
+  // ----- Gráfico de barras (hora) -----
   const horaLabels = Object.keys(vendasPorHora).sort(
     (a, b) => parseInt(a) - parseInt(b)
   );
-
   const barData = {
     labels: horaLabels.length ? horaLabels : ["-"],
     datasets: [
@@ -76,6 +82,7 @@ const VendasPage: React.FC = () => {
     ],
   };
 
+  // ----- Gráfico de pizza (categoria) -----
   const pieDataRaw = Object.entries(vendasPorCategoria).map(
     ([categoria, valor]) => ({
       name: categoria,
@@ -99,6 +106,7 @@ const VendasPage: React.FC = () => {
           },
         ];
 
+  // ----- Itens mais vendidos -----
   const itensMaisVendidos = Object.values(itensMap)
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
@@ -112,6 +120,7 @@ const VendasPage: React.FC = () => {
         Vendas do dia (comandas fechadas)
       </Text>
 
+      {/* Cards de resumo */}
       <View
         style={{
           flexDirection: "row",
@@ -175,7 +184,9 @@ const VendasPage: React.FC = () => {
         </Card>
       </View>
 
+      {/* Gráficos */}
       <View style={{ flexDirection: "row", gap: 24, marginBottom: 32 }}>
+        {/* Bar Chart */}
         <Card
           style={{
             width: 500,
@@ -194,7 +205,7 @@ const VendasPage: React.FC = () => {
             width={450}
             height={240}
             yAxisLabel=""
-            yAxisSuffix=""    
+            yAxisSuffix=""
             chartConfig={{
               backgroundGradientFrom: "#ffffff",
               backgroundGradientTo: "#ffffff",
@@ -207,6 +218,7 @@ const VendasPage: React.FC = () => {
           />
         </Card>
 
+        {/* Pie Chart */}
         <Card
           style={{
             width: 500,
@@ -235,6 +247,7 @@ const VendasPage: React.FC = () => {
         </Card>
       </View>
 
+      {/* Itens Mais Vendidos */}
       <Card style={{ width: "100%", marginBottom: 24 }}>
         <Text style={{ fontSize: 18, fontWeight: "600" }}>
           Itens Mais Vendidos
