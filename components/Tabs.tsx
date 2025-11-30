@@ -1,5 +1,5 @@
 import React from "react";
-import { View, TouchableOpacity, Text } from "react-native";
+import { View, TouchableOpacity, Text, ScrollView } from "react-native";
 import { usePathname, useRouter, Href } from "expo-router";
 import { colors, radius } from "./theme";
 
@@ -21,46 +21,58 @@ const Tabs: React.FC = () => {
   const router = useRouter();
 
   return (
-    <View
-      style={{
-        width: "100%",
-        maxWidth: 800,
-        alignSelf: "center",
-        flexDirection: "row",
-        backgroundColor: colors.tabBackground,
-        borderRadius: radius.full,
-        padding: 4,
-      }}
-    >
-      {tabs.map((tab) => {
-        const active =
-          tab.path === "/"
-            ? pathname === "/"
-            : pathname.startsWith(tab.path as string);
+    <View style={{ height: 50, marginBottom: 10 }}>
+      <ScrollView
+        horizontal={true} 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: 0, 
+          height: 45 
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            backgroundColor: colors.tabBackground,
+            borderRadius: radius.full,
+            padding: 4,
+            alignSelf: 'center', 
+            minWidth: '100%' 
+          }}
+        >
+          {tabs.map((tab) => {
+            const active =
+              tab.path === "/"
+                ? pathname === "/"
+                : pathname.startsWith(tab.path as string);
 
-        return (
-          <TouchableOpacity
-            key={tab.label}
-            onPress={() => router.push(tab.path)}
-            style={{
-              flex: 1,
-              paddingVertical: 10,
-              borderRadius: radius.full,
-              backgroundColor: active ? "#FFFFFF" : "transparent",
-            }}
-          >
-            <Text
-              style={{
-                textAlign: "center",
-                fontWeight: active ? "600" : "500",
-                color: active ? colors.textPrimary : colors.tabInactiveText,
-              }}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+            return (
+              <TouchableOpacity
+                key={tab.label}
+                onPress={() => router.push(tab.path)}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 20, 
+                  borderRadius: radius.full,
+                  backgroundColor: active ? "#FFFFFF" : "transparent",
+                  marginRight: 2, 
+                }}
+              >
+                <Text
+                  style={{
+                    textAlign: "center",
+                    fontWeight: active ? "700" : "500",
+                    color: active ? colors.textPrimary : colors.tabInactiveText,
+                    fontSize: 14,
+                  }}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
     </View>
   );
 };
