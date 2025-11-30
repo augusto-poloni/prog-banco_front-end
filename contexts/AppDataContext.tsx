@@ -1,12 +1,5 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
-} from "react";
-import api from "../services/api";
-
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import api from "../api";
 
 export type Categoria = "Entrada" | "Prato Principal" | "Sobremesa" | "Bebida";
 export type AreaPreparo = "Cozinha" | "Copa";
@@ -40,11 +33,22 @@ export interface Comanda {
   total?: number;
 }
 
+export interface User {
+  id: string;
+  nome: string;
+  email: string;
+}
+
 interface AppDataContextValue {
   menuItems: MenuItem[];
   comandas: Comanda[];
   comandasFechadas: Comanda[];
   isLoading: boolean;
+  
+  user: User | null;
+  signIn(email: string, pass: string): Promise<void>;
+  signUp(nome: string, email: string, pass: string): Promise<void>;
+  signOut(): void;
 
   refreshData(): Promise<void>;
   addMenuItem(data: Omit<MenuItem, "id">): Promise<void>;
@@ -58,14 +62,53 @@ interface AppDataContextValue {
 const AppDataContext = createContext<AppDataContextValue | undefined>(undefined);
 
 export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [comandas, setComandas] = useState<Comanda[]>([]);
   const [comandasFechadas, setComandasFechadas] = useState<Comanda[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+
   useEffect(() => {
-    refreshData();
-  }, []);
+    if (user) {
+      refreshData();
+    }
+  }, [user]);
+
+  async function signIn(email: string, pass: string) {
+    try {
+      const response = await api.post('/login', { email, senha: pass });
+      const { user: usuarioAPI, token } = response.data;
+      
+
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      setUser(usuarioAPI);
+    } catch (error) {
+      console.error(error);
+      throw new Error("Erro ao fazer login");
+    }
+  }
+
+  async function signUp(nome: string, email: string, pass: string) {
+    try {
+      const response = await api.post('/register', { nome, email, senha: pass });
+      const { user: usuarioAPI, token } = response.data;
+      
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      setUser(usuarioAPI);
+    } catch (error) {
+      console.error(error);
+      throw new Error("Erro ao cadastrar");
+    }
+  }
+
+  function signOut() {
+    setUser(null);
+    delete api.defaults.headers.common['Authorization'];
+  }
+
 
   const formatarItens = (itensAPI: any[]): ComandaItem[] => {
     return (itensAPI || []).map((it: any) => ({
@@ -81,7 +124,6 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
   async function refreshData() {
     setIsLoading(true);
     try {
-
       const responseMenu = await api.get("/cardapio");
       const menuFormatado: MenuItem[] = responseMenu.data.map((item: any) => {
         let cat: Categoria = "Prato Principal";
@@ -102,7 +144,7 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
       const abertasDetalhadas = await Promise.all(
         responseAbertas.data.map(async (c: any) => {
           try {
-            const detalhe = await api.get(/comandas/${c.id});
+            const detalhe = await api.get(`/comandas/${c.id}`);
             return {
               id: c.id.toString(),
               mesa: c.numeroMesa.toString(),
@@ -116,9 +158,8 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
       );
       setComandas(abertasDetalhadas.filter(c => c !== null) as Comanda[]);
 
-      try {
-
-      } catch (e) { console.log("Erro ao buscar vendas"); }
+      try { 
+      } catch (e) {}
 
     } catch (error) {
       console.error("Erro geral:", error);
@@ -152,7 +193,7 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
   }
 
   async function deleteMenuItem(id: string) {
-    await api.delete(/cardapio/${id});
+    await api.delete(`/cardapio/${id}`);
     refreshData();
   }
 
@@ -164,25 +205,26 @@ export const AppDataProvider: React.FC<{ children: ReactNode }> = ({ children })
   }
 
   async function adicionarItemNaComanda(comandaId: string, menuItemId: string, quantidade: number) {
-    await api.post(/comandas/${comandaId}/adicionar, {
+    await api.post(`/comandas/${comandaId}/adicionar`, {
       itemCardapioId: parseInt(menuItemId), quantidade, observacao: ""
     });
     refreshData();
   }
 
   async function atualizarStatusItem(comandaId: string, itemId: string, status: StatusProducao) {
-    await api.put(/pedidos/${itemId}/status, { status: mapStatusFrontendToBackend(status) });
+    await api.put(`/pedidos/${itemId}/status`, { status: mapStatusFrontendToBackend(status) });
     refreshData();
   }
 
   async function fecharComanda(comandaId: string) {
-    await api.put(/comandas/${comandaId}/fechar);
+    await api.put(`/comandas/${comandaId}/fechar`);
     refreshData();
   }
 
   return (
     <AppDataContext.Provider
       value={{
+        user, signIn, signUp, signOut,
         menuItems, comandas, comandasFechadas, isLoading,
         refreshData, addMenuItem, deleteMenuItem, abrirComanda,
         adicionarItemNaComanda, atualizarStatusItem, fecharComanda
@@ -198,4 +240,3 @@ export const useAppData = () => {
   if (!ctx) throw new Error("useAppData deve ser usado dentro de AppDataProvider");
   return ctx;
 };
-
