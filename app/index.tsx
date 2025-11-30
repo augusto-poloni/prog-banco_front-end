@@ -73,7 +73,7 @@ const ComandasPage: React.FC = () => {
         onAction={() => setNovaComandaVisivel(true)}
       />
 
-      <View style={{ marginTop: 24 }}>
+      <View style={{ marginTop: 16 }}>
         <Text style={{ fontSize: 20, fontWeight: "600", marginBottom: 4 }}>
           Comandas
         </Text>
@@ -89,14 +89,15 @@ const ComandasPage: React.FC = () => {
         {comandasAbertas.length === 0 ? (
           <View
             style={{
-              flex: 1,
               alignItems: "center",
               justifyContent: "center",
-              marginTop: 80,
+              marginTop: 80, 
+              paddingHorizontal: 20,
             }}
           >
-            <Text style={{ color: colors.textSecondary }}>
-              Nenhuma comanda aberta no momento
+            <Text style={{ color: colors.textSecondary,textAlign: 'center', fontSize: 16 }}>
+              Nenhuma comanda aberta no momento{"\n"}
+              Clique em "+ Nova Comanda" para começar.
             </Text>
           </View>
         ) : (

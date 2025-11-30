@@ -156,7 +156,7 @@ const UsuariosPage: React.FC = () => {
           }}
         >
           {usuarios.map((user) => (
-            <Card key={user.id} style={{ width: 340 }}>
+            <Card key={user.id} style={{ width: "100%", maxWidth: 340 }}>
               <View
                 style={{
                   flexDirection: "row",

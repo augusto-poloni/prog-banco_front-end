@@ -92,7 +92,8 @@ const ProducaoPage: React.FC = () => {
       key={p.item.id}
       style={{
         marginBottom: 16,
-        width: 650,
+        width: "100%",
+        maxWidth: 650,
       }}
     >
       <View
